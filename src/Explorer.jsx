@@ -1,26 +1,233 @@
-import React,{useState,useMemo} from 'react';
-import {Search,ArrowRight,ArrowUpRight,Bookmark,SlidersHorizontal,GitCompareArrows,X,Compass,ChevronDown,Check,Layers} from 'lucide-react';
-import {domains,roles} from './data';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
+import {ArrowRight, ArrowUpRight, Bookmark, Check, ChevronDown, Compass, FolderKanban, GitCompareArrows, Layers, Search, SlidersHorizontal, X} from 'lucide-react';
+import {domains, roles} from './data';
 import {analyze} from './engine';
-import {DomainIcon,domainColors,AtlasArt,Modal,EmptyState} from './ui';
+import {AtlasArt, DomainIcon, EmptyState, Modal, Progress, domainColors} from './ui';
 
-export default function Explorer({state,onChoose,onSave,savedOnly=false,onGoExplore}){
- const [query,setQuery]=useState(''),[domain,setDomain]=useState('all'),[sort,setSort]=useState('default'),[limit,setLimit]=useState(12),[compare,setCompare]=useState([]),[showCompare,setShowCompare]=useState(false);
- const validHours=Number.isInteger(+state.hours)&&+state.hours>=1&&+state.hours<=80;
- const filtered=useMemo(()=>{const q=query.toLowerCase().trim();const result=roles.filter(r=>(!savedOnly||state.favorites.includes(r.id))&&(domain==='all'||r.domain===domain)&&`${r.name} ${domains.find(d=>d.id===r.domain).name} ${r.skills.map(s=>s.name).join(' ')} ${r.aliases||''}`.toLowerCase().includes(q));if(sort==='default')result.sort((a,b)=>domains.findIndex(d=>d.id===a.domain)-domains.findIndex(d=>d.id===b.domain));if(sort==='name')result.sort((a,b)=>a.name.localeCompare(b.name));if(sort==='progress')result.sort((a,b)=>analyze(b,state.assessments[b.id]).readiness-analyze(a,state.assessments[a.id]).readiness);return result;},[query,domain,sort,savedOnly,state.favorites,state.assessments]);
- function changeFilter(fn){fn();setLimit(12);}
- function toggleCompare(id){setCompare(prev=>prev.includes(id)?prev.filter(x=>x!==id):prev.length<3?[...prev,id]:prev);}
- return <>
- {!savedOnly?<section className="hero"><div className="hero-copy"><div className="eyebrow"><span className="live-dot"/>THE CSE + IT CAREER ATLAS</div><h1>Find your thing.<br/><em>Build your future.</em></h1><p>There’s more than one way to be an engineer.<br className="desktop-break"/> Explore the possibilities. Find your gaps. Make your next move.</p><div className="hero-actions"><a className="button primary" href="#career-library">Find my direction <ArrowUpRight size={17}/></a><button className="text-button" onClick={()=>onChoose(state.roleId)}>Continue my path <ArrowRight size={16}/></button></div><div className="hero-proof"><span><strong>{roles.length}</strong> career paths</span><i/><span><strong>{domains.length}</strong> fields to explore</span><i/><span>One curious you.</span></div></div><AtlasArt/></section>:<section className="saved-hero"><div className="eyebrow">YOUR COLLECTION</div><h1>Good possibilities.<br/><em>Keep them close.</em></h1><p>Your saved paths, all in one place. You don’t have to choose just yet.</p></section>}
- <section id="career-library" className="library"><div className="section-heading"><div><div className="eyebrow">{savedOnly?'THE SHORTLIST':'FOLLOW YOUR CURIOSITY'}</div><h2>{savedOnly?'Your saved paths':'A whole world of directions'}<span className="count-pill">{savedOnly?state.favorites.length:roles.length}</span></h2></div><p>{savedOnly?'Compare your favorites. Find your fit.':'From your first line of code to the next frontier.'}</p></div>
- <div className="search-toolbar"><div className="search-box"><Search size={19}/><label className="sr-only" htmlFor="role-search">Search careers, skills, or tools</label><input id="role-search" value={query} onChange={e=>changeFilter(()=>setQuery(e.target.value))} placeholder="Try ‘blockchain’, ‘Python’, or ‘design’…"/>{query&&<button aria-label="Clear search" className="icon-button" onClick={()=>changeFilter(()=>setQuery(''))}><X size={17}/></button>}</div><div className="sort-field"><SlidersHorizontal size={16}/><label className="sr-only" htmlFor="sort">Sort careers</label><select id="sort" value={sort} onChange={e=>changeFilter(()=>setSort(e.target.value))}><option value="default">By field</option><option value="name">A to Z</option><option value="progress">My proficiency</option></select></div></div>
- <div className="field-filters" aria-label="Filter career fields"><button aria-pressed={domain==='all'} className={domain==='all'?'selected':''} onClick={()=>changeFilter(()=>setDomain('all'))}>All fields <span>{roles.length}</span></button>{domains.map(d=><button key={d.id} aria-pressed={domain===d.id} className={domain===d.id?'selected':''} onClick={()=>changeFilter(()=>setDomain(d.id))}><DomainIcon domain={d.id} size={15}/>{d.name.replace(' Engineering','').replace(' & Specialized','')} {' '}<span>{roles.filter(r=>r.domain===d.id).length}</span></button>)}</div>
- <div className="results-line" aria-live="polite"><span>{filtered.length} {filtered.length===1?'path':'paths'}{query?` matching “${query}”`:domain==='all'?' to make your own':` in ${domains.find(d=>d.id===domain).name}`}</span><span><GitCompareArrows size={14}/>Pick up to 3 to compare</span></div>
- {filtered.length===0?<EmptyState icon={savedOnly?Bookmark:Search} title={savedOnly&&!state.favorites.length?'Your next chapter is out there.':'No paths found. Yet.'} action={<button className="button secondary" onClick={()=>{setQuery('');setDomain('all');if(savedOnly&&!state.favorites.length)onGoExplore();}}>{savedOnly&&!state.favorites.length?'Explore career paths':'Clear filters'}<ArrowRight size={16}/></button>}>{savedOnly&&!state.favorites.length?'Tap the bookmark on any career to keep it here.':'Try a broader skill or another field. A job title may have a different name here.'}</EmptyState>:<div className="career-grid">{filtered.slice(0,limit).map(r=>{const d=domains.find(x=>x.id===r.domain),saved=state.favorites.includes(r.id),selected=compare.includes(r.id),a=analyze(r,state.assessments[r.id]);return <article className={`career-card ${selected?'comparing':''}`} style={{'--field-color':domainColors[r.domain]}} key={r.id}><div className="career-card-top"><span className="field-icon"><DomainIcon domain={r.domain}/></span><span className="field-name">{d.name}</span><button aria-label={`${saved?'Unsave':'Save'} ${r.name}`} aria-pressed={saved} className={`icon-button bookmark ${saved?'saved':''}`} onClick={()=>onSave(r.id)}><Bookmark size={18} fill={saved?'currentColor':'none'}/></button></div><h3><button onClick={()=>onChoose(r.id)}>{r.name}</button></h3><p className="career-description">{r.skills[3].name}. {r.skills[8].name}.</p><div className="skill-tags">{r.skills.slice(0,2).map(s=><span key={s.id}>{s.name}</span>)}</div><div className="career-meta"><span><Layers size={13}/>{r.skills.length} skills</span><span>4 projects</span>{a.readiness>0&&<span className="progress-label">{a.readiness}% assessed proficiency</span>}</div><div className="career-card-bottom"><button className="card-cta" onClick={()=>onChoose(r.id)}>Explore path <ArrowUpRight size={16}/></button><button disabled={!selected&&compare.length===3} className={`compare-toggle ${selected?'selected':''}`} aria-pressed={selected} aria-label={`Compare ${r.name}`} onClick={()=>toggleCompare(r.id)}>{selected?<Check size={14}/>:<GitCompareArrows size={14}/>}Compare</button></div></article>;})}</div>}
- {filtered.length>limit&&<div className="load-more"><button className="button secondary" onClick={()=>setLimit(v=>v+12)}>Explore more paths <ChevronDown size={16}/></button><small>Showing {Math.min(limit,filtered.length)} of {filtered.length}</small></div>}
- <div className="catalog-note"><Compass size={18}/><p>Careers don’t always fit in boxes. These paths cover major and specialist CSE / IT families; titles overlap and evolve. Start with the closest fit and make the plan yours.</p></div>
- </section>
- {compare.length>0&&<div className="compare-tray"><span><GitCompareArrows size={18}/><strong>{compare.length}/3</strong> paths selected</span><button className="button primary" disabled={compare.length<2} onClick={()=>setShowCompare(true)}>Compare paths <ArrowRight size={16}/></button><button className="icon-button" aria-label="Clear comparison" onClick={()=>setCompare([])}><X size={18}/></button></div>}
- {showCompare&&<Modal title="Different paths. Your choice." wide onClose={()=>setShowCompare(false)}><p className="modal-description">A side-by-side look at the work, the learning, and your current starting point.</p><div className="comparison-grid" style={{'--columns':compare.length}}>{compare.map(id=>{const r=roles.find(x=>x.id===id),a=analyze(r,state.assessments[id],state.completedProjects[id]);return <article key={id}><span className="field-icon" style={{'--field-color':domainColors[r.domain]}}><DomainIcon domain={r.domain}/></span><h3>{r.name}</h3><dl><dt>Self-rated proficiency</dt><dd>{a.readiness}%</dd><dt>Remaining estimated effort</dt><dd>{a.totalHours} hours</dd><dt>{validHours?`At ${state.hours} hours per week`:'Weekly pace'}</dt><dd>{validHours?`${Math.ceil(a.totalHours/+state.hours)} weeks`:'Set 1–80 whole hours in My path'}</dd></dl><h4>You’ll work on</h4><ul>{r.skills.slice(3,6).map(s=><li key={s.id}>{s.name}</li>)}</ul><h4>Your capstone</h4><p>{r.projects[3].name}</p><button className="button primary" onClick={()=>{setShowCompare(false);onChoose(id);}}>Choose this path <ArrowRight size={16}/></button></article>;})}</div></Modal>}
- </>;
+const pageSize = 12;
+const fields = domains.map((domain, order) => ({
+  ...domain,
+  order,
+  count: roles.filter(role => role.domain === domain.id).length,
+}));
+const fieldById = new Map(fields.map(field => [field.id, field]));
+const roleById = new Map(roles.map(role => [role.id, role]));
+const searchable = roles.map(role => ({
+  role,
+  text: `${role.name} ${fieldById.get(role.domain).name} ${role.skills.map(skill => skill.name).join(' ')} ${role.aliases}`.toLowerCase(),
+}));
+
+function CareerCard({role, saved, selected, compareFull, ratings, onChoose, onSave, onCompare}) {
+  const field = fieldById.get(role.domain);
+  const {readiness} = analyze(role, ratings);
+  return (
+    <article className={`career-card ${selected ? 'comparing' : ''}`} style={{'--field-color': domainColors[role.domain]}}>
+      <div className="career-card-top">
+        <span className="field-icon"><DomainIcon domain={role.domain}/></span>
+        <span className="field-name">{field.name}</span>
+        <button className={`icon-button bookmark ${saved ? 'saved' : ''}`} aria-label={`${saved ? 'Unsave' : 'Save'} ${role.name}`} aria-pressed={saved} onClick={() => onSave(role.id)}>
+          <Bookmark size={18} fill={saved ? 'currentColor' : 'none'}/>
+        </button>
+      </div>
+      <h3><button onClick={() => onChoose(role.id)}>{role.name}</button></h3>
+      <p className="career-description">{role.skills[3].name}. {role.skills[8].name}.</p>
+      <div className="skill-tags">{role.skills.slice(0, 2).map(skill => <span key={skill.id}>{skill.name}</span>)}</div>
+      <div className="career-meta">
+        <span><Layers size={14}/>{role.skills.length} skills</span>
+        <span><FolderKanban size={14}/>{role.projects.length} projects</span>
+        {readiness > 0 && <span className="progress-label">{readiness}% proficiency</span>}
+      </div>
+      <div className="career-card-bottom">
+        <button className="card-cta" onClick={() => onChoose(role.id)}>Explore path <ArrowUpRight size={16}/></button>
+        <button disabled={!selected && compareFull} className={`compare-toggle ${selected ? 'selected' : ''}`} aria-pressed={selected} aria-label={`Compare ${role.name}`} onClick={() => onCompare(role.id)}>
+          {selected ? <Check size={14}/> : <GitCompareArrows size={14}/>} Compare
+        </button>
+      </div>
+    </article>
+  );
+}
+
+export default function Explorer({state, onChoose, onSave, savedOnly = false, onGoExplore}) {
+  const [query, setQuery] = useState('');
+  const [domain, setDomain] = useState('all');
+  const [sort, setSort] = useState('default');
+  const [limit, setLimit] = useState(pageSize);
+  const [compare, setCompare] = useState([]);
+  const [showCompare, setShowCompare] = useState(false);
+  const searchRef = useRef(null);
+  const currentRole = roleById.get(state.roleId);
+  const currentRatings = state.assessments[state.roleId];
+  const assessedCount = Object.keys(currentRatings ?? {}).length;
+  const selectedRoles = compare.map(id => roleById.get(id));
+  const validHours = Number.isInteger(+state.hours) && +state.hours >= 1 && +state.hours <= 80;
+  const term = query.trim();
+
+  useEffect(() => {
+    function focusSearch(event) {
+      const isEditing = event.target instanceof HTMLElement && (event.target.closest('input, textarea, select') || event.target.isContentEditable);
+      if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey || event.defaultPrevented || isEditing || document.querySelector('dialog[open]')) return;
+      event.preventDefault();
+      searchRef.current?.focus();
+    }
+    window.addEventListener('keydown', focusSearch);
+    return () => window.removeEventListener('keydown', focusSearch);
+  }, []);
+
+  const filtered = useMemo(() => {
+    const words = term.toLowerCase().split(/\s+/).filter(Boolean);
+    const matches = searchable.filter(({role, text}) => (
+      (!savedOnly || state.favorites.includes(role.id)) &&
+      (domain === 'all' || role.domain === domain) &&
+      words.every(word => text.includes(word))
+    )).map(entry => entry.role);
+    if (sort === 'name') return matches.sort((a, b) => a.name.localeCompare(b.name));
+    if (sort === 'progress') {
+      return matches.map(role => ({role, score: analyze(role, state.assessments[role.id]).readiness}))
+        .sort((a, b) => b.score - a.score).map(entry => entry.role);
+    }
+    return matches.sort((a, b) => fieldById.get(a.domain).order - fieldById.get(b.domain).order);
+  }, [term, domain, sort, savedOnly, state.favorites, state.assessments]);
+
+  function updateQuery(value) {
+    setQuery(value);
+    setLimit(pageSize);
+  }
+
+  function clearFilters() {
+    updateQuery('');
+    setDomain('all');
+    searchRef.current?.focus();
+  }
+
+  function toggleCompare(id) {
+    setCompare(previous => {
+      if (previous.includes(id)) return previous.filter(item => item !== id);
+      return previous.length < 3 ? [...previous, id] : previous;
+    });
+  }
+
+  return (
+    <>
+      {savedOnly ? (
+        <section className="saved-hero entrance">
+          <h1>Your saved paths</h1>
+          <p>Keep promising roles together and compare what each one takes.</p>
+        </section>
+      ) : (
+        <section className="hero entrance">
+          <div className="hero-copy">
+            <div className="eyebrow"><span className="live-dot"/> CSE + IT CAREER ATLAS</div>
+            <h1>Find your thing.<br/><em>Build your future.</em></h1>
+            <p>Explore technology careers, find the skills you need, and build a learning plan at your own pace.</p>
+            <div className="hero-actions">
+              <a className="button primary" href="#career-library" onClick={() => searchRef.current?.focus({preventScroll: true})}>Explore careers <ArrowUpRight size={17}/></a>
+              <button className="text-button" onClick={() => onChoose(state.roleId)}>Continue my path <ArrowRight size={16}/></button>
+            </div>
+            <div className="hero-proof">
+              <span><strong>{roles.length}</strong> career paths</span><i/>
+              <span><strong>{domains.length}</strong> fields</span><i/>
+              <span><strong>{roles.reduce((sum, role) => sum + role.projects.length, 0)}</strong> projects</span>
+            </div>
+          </div>
+          <AtlasArt/>
+        </section>
+      )}
+
+      {!savedOnly && (assessedCount > 0 || state.completedProjects[state.roleId]?.length > 0) && (
+        <section className="resume-card" aria-label="Current learning path">
+          <span className="field-icon"><DomainIcon domain={currentRole.domain}/></span>
+          <div className="resume-role"><small>YOUR CURRENT PATH</small><h2>{currentRole.name}</h2></div>
+          <div className="resume-progress">
+            <span>{assessedCount} of {currentRole.skills.length} skills assessed</span>
+            <Progress value={Math.round(assessedCount / currentRole.skills.length * 100)} label="Skills assessed"/>
+          </div>
+          <button className="button secondary" onClick={() => onChoose(currentRole.id)}>Resume <ArrowRight size={16}/></button>
+        </section>
+      )}
+
+      <section id="career-library" className="library" aria-label={savedOnly ? 'Saved path results' : 'Career library'}>
+        {!savedOnly && <div className="section-heading library-heading"><h2>Career library</h2></div>}
+        <div className="filter-panel">
+          <div className="search-toolbar">
+            <div className="search-box">
+              <Search size={19}/>
+              <label className="sr-only" htmlFor="role-search">Search careers, skills, or tools</label>
+              <input ref={searchRef} id="role-search" value={query} onChange={event => updateQuery(event.target.value)} placeholder="Search roles, skills, or tools"/>
+              {query ? <button aria-label="Clear search" className="icon-button" onClick={() => { updateQuery(''); searchRef.current?.focus(); }}><X size={17}/></button> : <kbd aria-hidden="true">/</kbd>}
+            </div>
+            <div className="sort-field">
+              <SlidersHorizontal size={16}/><label className="sr-only" htmlFor="sort">Sort careers</label>
+              <select id="sort" value={sort} onChange={event => { setSort(event.target.value); setLimit(pageSize); }}>
+                <option value="default">By field</option><option value="name">A to Z</option><option value="progress">My proficiency</option>
+              </select>
+            </div>
+          </div>
+          <div className="field-filters" role="group" aria-label="Filter career fields">
+            <button aria-pressed={domain === 'all'} className={domain === 'all' ? 'selected' : ''} onClick={() => { setDomain('all'); setLimit(pageSize); }}>All fields</button>
+            {fields.map(field => (
+              <button key={field.id} aria-pressed={domain === field.id} className={domain === field.id ? 'selected' : ''} onClick={() => { setDomain(field.id); setLimit(pageSize); }}>
+                <DomainIcon domain={field.id} size={15}/>
+                {field.name.replace(' Engineering', '').replace(' & Specialized', '')} {' '}
+                <span>{savedOnly ? state.favorites.filter(id => roleById.get(id)?.domain === field.id).length : field.count}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="results-line">
+          <span aria-live="polite">{filtered.length} {filtered.length === 1 ? 'path' : 'paths'}{term ? ` matching “${term}”` : domain !== 'all' ? ` in ${fieldById.get(domain).name}` : ''}</span>
+          {filtered.length > 0 && (term || domain !== 'all') && <button className="text-button" onClick={clearFilters}>Clear filters <X size={14}/></button>}
+        </div>
+        {filtered.length === 0 ? (
+          <EmptyState icon={savedOnly ? Bookmark : Search} title={savedOnly && !state.favorites.length ? 'No saved paths yet' : 'No paths found. Yet.'} action={
+            <button className="button secondary" onClick={savedOnly && !state.favorites.length ? onGoExplore : clearFilters}>
+              {savedOnly && !state.favorites.length ? 'Explore career paths' : 'Clear filters'} <ArrowRight size={16}/>
+            </button>
+          }>{savedOnly && !state.favorites.length ? 'Save a career with the bookmark button to find it here.' : 'Try a broader skill, a different title, or another field.'}</EmptyState>
+        ) : (
+          <div className="career-grid">
+            {filtered.slice(0, limit).map(role => <CareerCard key={role.id} role={role} saved={state.favorites.includes(role.id)} selected={compare.includes(role.id)} compareFull={compare.length === 3} ratings={state.assessments[role.id]} onChoose={onChoose} onSave={onSave} onCompare={toggleCompare}/>)}
+          </div>
+        )}
+        {filtered.length > limit && <div className="load-more"><button className="button secondary" onClick={() => setLimit(count => count + pageSize)}>Explore more paths <ChevronDown size={16}/></button><small>Showing {limit} of {filtered.length}</small></div>}
+      </section>
+
+      {compare.length > 0 && (
+        <aside className="compare-tray" aria-label="Selected career paths">
+          <div className="compare-selection">
+            <span aria-live="polite"><GitCompareArrows size={16}/> {compare.length} of 3 selected</span>
+            <div className="compare-chips">{selectedRoles.map(role => (
+              <button key={role.id} onClick={() => toggleCompare(role.id)} aria-label={`Remove ${role.name} from comparison`} title={role.name}><span>{role.name}</span><X size={14}/></button>
+            ))}</div>
+          </div>
+          <div className="compare-actions">
+            <button className="button primary" disabled={compare.length < 2} onClick={() => setShowCompare(true)}>Compare paths <ArrowRight size={16}/></button>
+            <button className="icon-button" aria-label="Clear comparison" onClick={() => setCompare([])}><X size={18}/></button>
+          </div>
+        </aside>
+      )}
+
+      {showCompare && (
+        <Modal title="Different paths. Your choice." wide onClose={() => setShowCompare(false)}>
+          <p className="modal-description">Compare the skills, estimated effort, and capstone project for each role.</p>
+          <div className="comparison-grid" style={{'--columns': compare.length}}>
+            {selectedRoles.map(role => {
+              const analysis = analyze(role, state.assessments[role.id], state.completedProjects[role.id]);
+              return <article key={role.id}>
+                <span className="field-icon" style={{'--field-color': domainColors[role.domain]}}><DomainIcon domain={role.domain}/></span>
+                <h3>{role.name}</h3>
+                <dl>
+                  <dt>Self-rated proficiency</dt><dd>{analysis.readiness}%</dd>
+                  <dt>Remaining estimated effort</dt><dd>{analysis.totalHours} hours</dd>
+                  <dt>{validHours ? `At ${state.hours} hours per week` : 'Weekly pace'}</dt><dd>{validHours ? `${Math.ceil(analysis.totalHours / +state.hours)} weeks` : 'Set 1–80 whole hours in My path'}</dd>
+                </dl>
+                <h4>Core skills</h4><ul>{role.skills.slice(3, 6).map(skill => <li key={skill.id}>{skill.name}</li>)}</ul>
+                <h4>Capstone project</h4><p>{role.projects[3].name}</p>
+                <button className="button primary" onClick={() => { setShowCompare(false); onChoose(role.id); }}>Choose this path <ArrowRight size={16}/></button>
+              </article>;
+            })}
+          </div>
+        </Modal>
+      )}
+    </>
+  );
 }
